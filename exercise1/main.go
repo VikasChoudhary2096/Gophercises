@@ -1,70 +1,65 @@
 package main
 
 import (
+	"encoding/csv"
+	"flag"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
+	"time"
 )
 
 type quesAns struct {
 	ques string
-	ans  int
+	ans  string
 }
 
 func main() {
 
-	file, err := os.Open("problems.csv")
+	csvFileName := flag.String("csv", "problems.csv", "question answer csv file")
+	timeLimit := flag.Int("t", 30, "time limit of quiz")
+	flag.Parse()
+
+	file, err := os.Open(*csvFileName)
 	if err != nil {
 		fmt.Println("Err: ", err)
 		os.Exit(1)
 	}
 
-	content := make([]byte, 75)
+	csvReader := csv.NewReader(file)
+	content, _ := csvReader.ReadAll()
+	// var key string
+	fmt.Println("Give answers to the questions...")
+	// fmt.Scan(&key)
 
-	_, e := file.Read(content)
-	if err != nil {
-		fmt.Println("Err: ", e)
-		os.Exit(1)
-	}
+	var result int
 
-	result := 0
-	fmt.Println("Give answers to the questions")
+	timer := time.NewTimer(time.Second * time.Duration(*timeLimit))
 
-	bank := formatQandAs(content)
+pairLoop:
+	for _, pair := range content {
+		fmt.Printf("what is %v?", pair[0])
+		fmt.Println()
+		answer := make(chan string)
 
-	for i := 0; i < len(bank); i++ {
-		pair := bank[i]
-		fmt.Println(pair.ques)
+		go func() {
+			var ans string
+			fmt.Scan(&ans)
+			answer <- ans
+		}()
 
-		var ans int
-		fmt.Scan(&ans)
-		fmt.Println(ans, pair.ans)
-		if ans == pair.ans {
-			result += 1
+		select {
+		case <-timer.C:
+			fmt.Println("time is over")
+			break pairLoop
+			// pairLoop.break
+		case ans := <-answer:
+			if ans == strings.TrimSpace(pair[1]) {
+				result += 1
+			}
 		}
 	}
-
-	fmt.Println("count", result)
-
-}
-
-func formatQandAs(content []byte) []quesAns {
-
-	qa := []quesAns{}
-
-	// get slice of qa
-	quesAndAns := strings.Split(string(content), "\n")
-	for _, pair := range quesAndAns {
-		pairSlice := strings.Split(pair, ",")
-		ques := pairSlice[0]
-		fmt.Println("hmm", len(pairSlice[1]))
-		ans, _ := strconv.Atoi(strings.TrimRight(pairSlice[1], "\n"))
-		fmt.Println("hmm", ans)
-		p := quesAns{ques: ques, ans: ans}
-		qa = append(qa, p)
-	}
-
-	return qa
-
+	fmt.Println()
+	fmt.Printf("your correct answers count is %d", result)
+	fmt.Println()
 }
